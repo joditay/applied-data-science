@@ -4,9 +4,9 @@ title: |
   | Introduction to Applied Data Science
   | 2022-2023
 author: |
-  | Your Name
-  | your_email@students.uu.nl
-date: April 2023
+  | Jodi Tay Seow Xuan
+  | j.joditayseowxuan@students.uu.nl
+date: June 2023
 urlcolor: purple
 linkcolor: purple
 output: 
@@ -39,8 +39,8 @@ The `wbstats` package allows you to navigate the World Bank database, and downlo
 
 ```{r}
 library(wbstats)
-
-# your code here
+wbstats::wb_search("Poverty headcount ratio")
+poverty_data <- wb_data("SI.POV.NAHC")
 ```
 
 Now, we will also load the `tidyverse` package, as we're going to do some data wrangling to glue various pieces of data together:
@@ -52,19 +52,19 @@ library(tidyverse)
 **Question 1.2**: Remove the `NA` observations from the dataset. Hint: you can use `na.omit`, but you have to `select` only a couple of columns. 
 
 ```{r}
-
+poverty_data <- poverty_data %>% drop_na("SI.POV.NAHC")
 ```
 
 **Question 1.3:** For which countries is this data available? Print a vector of the first 10 unique country names. Do not type a string variable of all the country names yourself, but use code to extract this. 
 
 ```{r}
-
+head(unique(poverty_data$country),10)
 ```
 
 **Question 1.4**: For convenience, we might want to rename our poverty variable. Rename the poverty indicator to poverty and overwrite the resulting data.frame to memory. 
 
 ```{r}
-
+poverty_data <- rename(poverty_data, c("poverty" = "SI.POV.NAHC"))
 ```
 
 The `rename` function follows the `new = old` syntax, which you can verify by typing `?rename` in the console. 
@@ -112,19 +112,20 @@ But before that, we remove variables we do not need: we want to select the varia
 **Question 2.1**: Select these variables and write them to a `data.frame` called `to_be_merged`. 
 
 ```{r}
-
+to_be_merged <- data.frame(anckar$iso2c, anckar$year, anckar$democracy)
 ```
 
 **Question 2.2**: Use the `left_join` command to merge these two variables to the `poverty_data` data.frame. Read `?left_join` to correctly specify the `by` argument in this function. Make sure to match on two variables: the `iso2c` codes and the years, so that you match based on country-year pairs. 
 
 ```{r}
-
+poverty_data <- left_join(poverty_data, to_be_merged, by=c("iso2c"="anckar.iso2c", "date"="anckar.year"))
 ```
 
 **Question 2.3**: Find out what the median is of the poverty variable in the dataset you downloaded. Extract your answer via code in a new code chunk below. 
 
 ```{r}
-
+median <- median(poverty_data$poverty, na.rm = TRUE)
+median
 ```
 
 
@@ -140,7 +141,7 @@ $$
 You can easily do so using the `if_else` function from `dplyr`. Check `?if_else` for its syntax. Then, write the data.frame with the new variable to memory named `data` again.
 
 ```{r}
-
+poverty_data$povyesno <- ifelse(poverty_data$poverty > median, 1, 0)
 ```
 
 ### Part 3: Obtain the required educational data
@@ -156,19 +157,22 @@ For this setting, we'll take the variable `SE.PRM.CUAT.ZS`, which is the fractio
 **Question 3.1**: Download this variable and store it in a dataset called `education` using the function `wb_data`. 
 
 ```{r}
-
+education <- wb_data("SE.PRM.CUAT.ZS")
 ```
 
 **Question 3.2**: Select the first five variables and then omit the `NA` observations from this dataset. Also rename the variable to `educ`. 
 
 ```{r}
-
+education <- education %>% 
+  select(iso2c:SE.PRM.CUAT.ZS) %>%
+  drop_na("SE.PRM.CUAT.ZS") %>%
+  rename("educ" = "SE.PRM.CUAT.ZS")
 ```
 
 **Question 3.3**: Now use `left_join` again to merge your already assembled `data` with the `education` data, and rewrite it again to memory as `data` (meaning that you overwrite data with the merged data.frame):
 
 ```{r}
-
+data <- left_join(poverty_data, education, by=c("iso2c"="iso2c", "date"="date"))
 ```
 
 There are a couple of unnecessary variables in your dataset, and the merges have caused some `NA`s. They can be removed using the `select` function in the following way:
@@ -176,7 +180,7 @@ There are a couple of unnecessary variables in your dataset, and the merges have
 ```{r}
 data <- data |>
   select(-iso3c.x, -country.x, -iso3c.y, -country.y) |> 
-  na.omit()
+  drop_na("educ", "anckar.democracy")
 
 ```
 
@@ -255,21 +259,24 @@ data <- data |>
 Next, we'll run the algorithm. You'll get an output containing two numbers, the estimated $\alpha, \beta_1$, corresponding to a constant term and `education` respectively. 
 
 ```{r}
-linear_gd <- gradient_descent(cbind(1, data$educ, data$democracy), 
+linear_gd <- gradient_descent(cbind(1, data$educ, data$anckar.democracy), 
                               cbind(data$poverty))
-
 ```
 
 **Question 4.1**: Print the three numbers you got in your RMarkdown document. Note: the algorithm might take a couple of minutes to run. 
 
 ```{r}
-# print the numbers in this code chunk
-
+print(linear_gd)
 ```
 
 The three numbers should correspond to an _intercept_, a $\beta_1$-coefficient for education and a $\beta_2$ coefficient for democracy, respectively.
 
 **Question 4.2**: Interpret the model. If countries become more democratic, do they get more or less poor, according to this model? And wht about if they get more education? Which one of the variables is more important? 
+
+```{r}
+# For a 1 unit increase in a country's democracy, there is a 6.58 units increase in poverty. Conversely, for a 1 unit increase in the level of investment in education, there is a 39 units decrease in poverty. Thus, as countries become more democratic, they become poorer, but as they get more education, they become less poor. Overall, the absolute value of the education coefficient is larger, so it is more important in affecting poverty. 
+```
+
 
 ### Part 5: Building a logistic regression model
 
@@ -281,7 +288,9 @@ $$
 **Question 5.1**: Implement the sigmoid function as a function in R
 
 ```{r}
-
+sigmoid <- function(x) {
+  return(1/(1+exp(-x)))
+}
 ```
 
 A nice thing about this sigmoid function is that its outcomes always fall between 0 and 1. We'll use the sigmoid function to build a logistic regression model. In particular, instead of a simple argument $x$, we are predicting the outcome, poverty, on the basis of the same two independent variables as before, and two corresponding coefficients. Our sigmoid function would thus look like this:
@@ -321,7 +330,7 @@ Now we can use this algorithm to run our gradient descent algorithm, this time f
 
 ```{r}
 
-logit_gd <- logistic_regression(cbind(1, data$educ, data$democracy), data$povyesno,
+logit_gd <- logistic_regression(cbind(1, data$educ, data$anckar.democracy), data$povyesno,
                  alpha = 0.1, 
                  iterations = 50000)
 ```
@@ -329,7 +338,9 @@ logit_gd <- logistic_regression(cbind(1, data$educ, data$democracy), data$povyes
 **Question 5.2**: Display the numbers you got in the document. Do the numbers have the same sign as in the linear regression? Why (not)?
 
 ```{r}
-# Enter the numbers here
+print(logit_gd) 
+
+# The numbers have a different sign compared to the linear regression, as logistic regression deals with categorical variables whilst linear regression deals with continuous variables
 ```
 
 ### Part 6: Evaluate your output and compare it to standard solutions
@@ -339,26 +350,46 @@ In this section, we'll think about the output of our analysis and the interpreta
 **Question 6.1**: Verify that the solution from the analytical model (`lm(y ~ x1 + x2, data = data)`) is identical to the solution you obtained when performing gradient descent. Use `summary` on an `lm` object to display the summary. 
 
 ```{r}
-
+linear_model <- lm(poverty ~ educ + anckar.democracy, data = data)
+summary(linear_model)
 ```
 
 
 **Question 6.2**: Verify that the solution from the analytical logistic regression model `glm(y ~ x1 + x2, data = data, family = "binomial)` is identical to the solution when performing gradient descent. 
 
 ```{r}
-
+g_linear_model <- glm(povyesno ~ educ + anckar.democracy, data = data, family = "binomial")
+summary(g_linear_model)
 ```
 
 Finally, we also want to use what we've learned about poverty. 
 
 **Question 6.3**: Give an interpretation of the linear model. What would happen to poverty when a country becomes more democratic, and what would happen to poverty if a country had invested more in education? Is the effect large? Explain.
 
+```{r}
+# For a 1 unit increase in a country's democracy, there is a 6.58 units increase in poverty. Conversely, for a 1 unit increase in the level of investment in education, there is a 39 units decrease in poverty. Overall, the absolute value of the education coefficient is larger, so it is more important in affecting poverty. As the p-value is extremely small, we can conclude that at least one of the variables, democracy or education, has a significant effect on poverty.
+```
+
+
 **Question 6.4**: Give an interpretation of the logistic regression model. What would happen the likelihood to be poor when a country becomes more democratic, and what would happen if a country had invested more in education? Is the effect large? Explain.
+
+```{r}
+# As a country becomes more democratic, there is an increase in the likelihood to be poor. As a country invests more in education, there is a decrease in the liklihood to be poor. Since the residual deviance is smaller than the null deviance, we can conclude that democracy and education improves the model fit and hence as an effect on poverty. 
+```
+
 
 **Question 6.5**: Generate the predicted values from the linear model. Find the _highest_ predicted value. For which country is this (show the `iso2c` code) And what is the predicted value? Use code to find all of this information. Hint: use `predict`, `max` and `which.max`, and then look at `data`. 
 
 ```{r}
+# Highest predicted value
+predicted <- predict(linear_model, data)
+max_predicted <- max(predicted)
+max_predicted
 
+# iso2c code of highest predicted value
+iso2c_col <- data$iso2c
+country_max <- iso2c_col[[which.max(predicted)]]
+country_max
 ```
 
 ## The End

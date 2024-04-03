@@ -4,9 +4,9 @@ title: |
   | Introduction to Applied Data Science
   | 2022-2023
 author: |
-  | Your Name
-  | your_email@students.uu.nl
-date: April 2023
+  | Jodi Tay Seow Xuan
+  | j,joditayseowxuan@students.uu.nl
+date: 17 May 2023
 urlcolor: purple
 linkcolor: purple
 output: 
@@ -53,37 +53,47 @@ Firstly, we will look for GDP growth data.
 > GDP at purchaser's prices is the sum of gross value added by all resident producers in the economy plus any product taxes and minus any subsidies not included in the value of the products. It is calculated without making deductions for depreciation of fabricated assets or for depletion and degradation of natural resources. Data are in current U.S. dollars. Dollar figures for GDP are converted from domestic currencies using single year official exchange rates. For a few countries where the official exchange rate does not reflect the rate effectively applied to actual foreign exchange transactions, an alternative conversion factor is used.
 
 ```{r, cache=TRUE}
-
+wbstats :: wb_search("gdp")
+wb_data("NY.GDP.MKTP.CD")
+gdp<-wb_data("NY.GDP.MKTP.CD")
 ```
 
 **Question 1.2**: Write a code chunk below that does the following things. Rename the variable `NY.GDP.MKTP.CD` to `gdp`. You can use the `rename` function. Enter `?rename` in the console to see how this works. Also remove the `NA` observations from the data set. 
 
 ```{r}
-
+gdp <- rename(gdp, c("gdp" = "NY.GDP.MKTP.CD"))
+gdp <- gdp %>% drop_na("gdp")
 ```
 
 **Question 1.3**: How many observations are there in the data set in total? Answer in a code chunk, and use a function to let R generate the answer. 
 
 ```{r}
-
+nrow(gdp)
 ```
 
 **Question 1.4**: How many observations per country are there? Show the first ten observations. Answer in a code chunk to let R generate the answer. 
 
 ```{r}
-
+head(gdp %>% count(country), 10)
 ```
 
 **Question 1.5**: Make a summary of the data, with the mean, median, sd, min and max values for `gdp`.
 
 ```{r}
+summary <- cbind (min(gdp$gdp, na.rm = TRUE),
+max(gdp$gdp, na.rm = TRUE),
+median(gdp$gdp, na.rm = TRUE),
+mean(gdp$gdp, na.rm = TRUE),
+sd(gdp$gdp, na.rm = TRUE))
 
+colnames(summary) <- c("min", "max", "median", "mean", "sd")
 ```
 
 **Question 1.6**: What country, in which year, had the lowest GDP? And the highest? Hint: use a function similar to `slice` from the `dplyr` package. 
 
 ```{r}
-
+gdp %>% slice_min(gdp)
+gdp %>% slice_max(gdp)
 ```
 
 Next, we'll have a look at population data, which we can also retrieve from the World Bank database. 
@@ -95,7 +105,7 @@ population <- wb_data("SP.POP.TOTL")
 **Question 1.7**: Rename the population variable to `population` and overwrite this to memory.
 
 ```{r}
-
+population <- rename(population, c("population" = "SP.POP.TOTL"))
 ```
 
 Finally, we'll merge `population` with `gdp` on the basis of _country_ and _year_. 
@@ -107,7 +117,11 @@ Select only `country, date, isco3c.x, gdp` and `population`.
 Then, use `mutate()` to create a new variable, `gdp_cap = gdp / population`. Then, filter out NA observations. Write the end product of all of this (a new data.frame) to memory as `data`. 
 
 ```{r}
-
+data <- left_join(gdp, population, by=c("country"="country", "date"="date"))
+data <- select(data, country, date, iso3c.x, gdp, population)
+data <- data %>%
+  mutate(gdp_cap = gdp/population) %>%
+  filter(!is.na(gdp_cap))
 ```
 
 Now, let's collect a pre-made version of GDP per capita from the World Bank website. 
@@ -123,7 +137,7 @@ alt_gdp_pc <- wb_data('NY.GDP.PCAP.CD') |>
 **Question 1.9**: What is the correlation between these two (this gdp per capita and the `gdp_cap` we just created) variables? What does that mean?
 
 ```{r}
-
+# gdp per capita and gdp_cap are the same variables but are identified through different collection methods.
 ```
 
 ### Part 2. World Tables: Capital Stock
@@ -145,7 +159,7 @@ We are looking for the `cn` variable, which indicates _Capital stock at current 
 **Question 2.1**: Select the variables `countrycode, year`, and `cn`, and rewrite the dataframe to memory.
 
 ```{r}
-
+pwt <- select(pwt, countrycode, year, cn)
 ```
 
 Now, we're looking to merge the two data.frames `data` and `pwt`, on the basis of common country names and years. 
@@ -166,7 +180,7 @@ We can do this in various ways: we can perform `left_join`, `right_join`, `inner
 **Question 2.3**: Do this. Perform a merge and save the resulting data.frame to `merged_data`. See `?merge` to find out what arguments you have to use 
 
 ```{r}
-
+merged_data <- right_join(pwt, data, by=c("year"="date", "countrycode"="iso3c.x"))
 ```
 
 Next, we want to average GDP per capita and Capital stock for each country present in the dataset. This can be done easily using the `mutate` function from the `tidyverse` package. However, we want to investigate _current_ GDP per capita, so we do not want to take too long an average.
@@ -177,10 +191,11 @@ Say we want to take an average over the years 2010-2020.
 
 ```{r}
 merged_data <- merged_data |>
-  group_by(country, iso3c.x) |>
-  filter(between(date, 2010, 2020)) |>
+  group_by(country, countrycode) |>
+  filter(between(year, 2010, 2020)) |>
   summarize(
-    # fill in your answer here
+    avg_gdpc = mean(gdp_cap, na.rm = TRUE),
+    avg_cn = mean(cn, na.rm = TRUE)
   )
 
 ```
@@ -218,30 +233,36 @@ educ <- Clio::clio_get("Average Years of Education")
 **Question 3.1**: Filter this dataset such that only observations from 1930 remain. 
 
 ```{r}
-
+educ <- filter(educ, year == "1930")
 ```
 
 **Question 3.2**: Merge this dataset to the `merged_data` set, so that the human capital proxy is added to the dataset. 
+
+```{r}
+urb <- Clio::clio_get("Urbanization Ratio")
+urb <- filter(urb, year == "1500")
+```
 
 When discussing economic growth, some people also talk about a _reversal of fortune_ tendency: the countries that were relatively the most wealthy in or before the Middle Ages are among the poorest now, and vice versa. We also want to investigate such an hypothesis. In order to do so, we use a proxy for wealth from 1500, the urbanization ratio. This can also be downloaded from the Clio Infra database. 
 
 **Question 3.3**: Now find and download Urbanization Ratio, filter the dataset such that only observations from 1500 remain, and save it to `urb`. 
 
 ```{r}
-
+merged_data <- merge(educ, merged_data, by.x = "country.name", by.y = "country")
 ```
 
 Now, let's merge `educ` and `urb` together, and then subsequently merge this to the `merged_data` data.frame. 
 
 ```{r}
 educ_urb <- merge(educ, urb, by = "ccode")
+educ_urb <- merge(educ_urb, merged_data, by ="ccode")
 ```
 
 Now, let's also remove `year.x`, `year.y` and `country.name.y` from the dataset:
 
 ```{r}
 educ_urb <- educ_urb |>
-  select(-c(year.x, year.y, country.name.y))
+  select(-c(year.x, year.y, country.name.y, year.x, year.y, country.name.x, country.name.y, `Average Years of Education.x`))
 ```
 
 Finally, we need to merge `educ_urb` to the `merged_data` data.frame. 
@@ -249,7 +270,11 @@ Finally, we need to merge `educ_urb` to the `merged_data` data.frame.
 **Question 3.4**: Merge these two data frames using `left_join`, with `merged_data` being the left data.frame. Rename `Average Years of Education` and `Urbanization Ratio` to `av_educ` and `urban` respectively. Write the resulting data.frame to memory as `final`. 
 
 ```{r}
-
+final <- left_join(merged_data, educ_urb, by ="ccode")
+final <- final |>
+  select(-c(country.name.y, year.y, `Average Years of Education.y`, countrycode.y, avg_gdpc.y, avg_cn.y))
+final <- rename(final, c(av_educ = "Average Years of Education"))
+final <- rename(final, c(urban = "Urbanization Ratio"))
 ```
 
 
@@ -260,9 +285,9 @@ We now have a nice data.frame with `avg_gdpc`, `avg_cn`, `av_educ` and `urban`. 
 ```{r, fig.width=8, fig.height=3}
 p_load('gridExtra')
 
-p <- ggplot(data = final, aes(y=avg_gdpc))
+p <- ggplot(data = final, aes(y=avg_gdpc.x))
 grid.arrange(
-  p + geom_point(aes(x=avg_cn)),
+  p + geom_point(aes(x=avg_cn.x)),
   p + geom_point(aes(x=av_educ)),
   p + geom_point(aes(x=urban)), 
   nrow = 1
@@ -270,6 +295,12 @@ grid.arrange(
 ```
 
 **Question 4.1**: Which one of the three explanatory variables has the clearest relationship with `avg_gdpc`? Why do you think that is?
+
+```{r}
+# avg_educ has the clearest relationship with avg_gdpc. The trend line that is obtained from the scatter plot likely has the highest absolute gradient. This suggests that as average years of education increase, average GDP per capita is likely to increase as well. 
+
+# This is because education is an essential part of human capital, and can directly improve productivity and economic participation within a country, both of which positively influence GDP per capita.
+```
 
 Finally, we might consider an alternative measure of wealth rather than GDP per capita. On [this](https://en.wikipedia.org/wiki/List_of_countries_by_Human_Development_Index) wikipedia page, there is a table with the so-called Human Development Index, which is supposed to be a broader indicator of wealth rather than GDP per capita, which focuses on financial wealth. 
 
@@ -280,7 +311,7 @@ p_load('rvest', 'janitor')
 url <- 'https://en.wikipedia.org/wiki/List_of_countries_by_Human_Development_Index'
 
 table <- read_html(url) |>
-  html_elements('') |>  # find a css selector of the table here
+  html_elements('#mw-content-text > div.mw-parser-output > table:nth-child(20)') |>  # find a css selector of the table here
   html_table() |>
   purrr::pluck(1) |>
   janitor::clean_names()
@@ -297,7 +328,7 @@ table <- table |>
 **Question 4.3**: Show the first 5 observations of the table
 
 ```{r}
-# use this code chunk
+head(table, 5)
 ```
 
 
