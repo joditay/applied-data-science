@@ -1,0 +1,364 @@
+---
+title: | 
+  | Assignment 3: Linear and Logistic Regression
+  | Introduction to Applied Data Science
+  | 2022-2023
+author: |
+  | Your Name
+  | your_email@students.uu.nl
+date: April 2023
+urlcolor: purple
+linkcolor: purple
+output: 
+  pdf_document
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(warning = FALSE, message = FALSE, error=TRUE)
+```
+
+## Assignment 3: Linear and Logistic Regression to Predict Poverty
+
+In this assignment, you will build your own linear and logistic regression models predicting poverty, using the gradient descent algorithms we talked about in lecture 5. Similarly to the previous assignment, you will fill up the code chunks left empty in this document, and you will interpret them in this document. To start with, please replace my name and e-mail address with yours. 
+
+To start building statistical models that predict poverty, we need to proceed in the following way. We will predict poverty in a simple setting, and predict poverty on the basis of educational attainment and democracy scores. We will start from scratch, meaning that we ourselves will look for relevant data sources, put them together, and build some simple statistical models. Finally, we will check our solutions against standard benchmarks, and will attempt to interpret them. We will also set a seed to make answers comparable and exclude randomness:
+
+```{r}
+set.seed(2)
+```
+
+You have to hand in an `.Rmd` document on Blackboard before the deadline. The basis of the document is the present document, which you will fill in yourself with your own code snippets, answers to open questions, and code output (figures, tables, etc.). 
+
+### Part 1: Obtain the required poverty data
+
+We are going to make use of the `wbstats` package, which you have seen before. If you haven't done so already, you can install the package with `install.packages('wbstats')`. Make sure not to put this in your Rmarkdown document, as R will then attempt to install this package every time you knit your document. 
+
+The `wbstats` package allows you to navigate the World Bank database, and download datasets without having to visit the World Bank website, download the data into a spreadsheet, and subsequently load it into R. With the help of this package, we just download the data into R right away. 
+
+**Question 1.1**: Read [this](https://cran.r-project.org/web/packages/wbstats/vignettes/wbstats.html) so-called vignette to find out how to navigate the World Bank data using the `wbstats` package. Download the variable that measures the "_Poverty headcount ratio at national poverty lines (% of population)_", the proportion of the population with daily per capita income below the national poverty line. Save it as `poverty_data`.
+
+```{r}
+library(wbstats)
+
+# your code here
+```
+
+Now, we will also load the `tidyverse` package, as we're going to do some data wrangling to glue various pieces of data together:
+
+```{r message = FALSE}
+library(tidyverse)
+```
+
+**Question 1.2**: Remove the `NA` observations from the dataset. Hint: you can use `na.omit`, but you have to `select` only a couple of columns. 
+
+```{r}
+
+```
+
+**Question 1.3:** For which countries is this data available? Print a vector of the first 10 unique country names. Do not type a string variable of all the country names yourself, but use code to extract this. 
+
+```{r}
+
+```
+
+**Question 1.4**: For convenience, we might want to rename our poverty variable. Rename the poverty indicator to poverty and overwrite the resulting data.frame to memory. 
+
+```{r}
+
+```
+
+The `rename` function follows the `new = old` syntax, which you can verify by typing `?rename` in the console. 
+
+### Part 2: Obtain the required democracy data
+
+Next, we will download datasets related to varieties of democracy. This data is contained in the Github package `democracyData`. The package is not available on the official R package repository CRAN, but it a custom package which is downloadable from somebody's github repository. To download packages from Github, we need the `devtools` package:
+
+```{r}
+pacman::p_load("devtools")
+```
+
+Then, we can install the package using the `install_github()` function by using this (preferably in the console) `devtools::install_github("xmarquez/democracyData")`. Once installed, we can load the package as follows:
+
+```{r}
+pacman::p_load('democracyData')
+```
+
+After installing and loading the package, we want to load a dataset from the package. To get a sense of what the data looks like, you can have a look [here](https://xmarquez.github.io/democracyData/). The particular dataset we will use is called the `anckar` dataset, and contains data used in Anckar and Fredriksson (2018). 
+
+```{r}
+anckar <- democracyData::anckar
+```
+
+Have a look at the Anckar and Fredriksson dataset we just downloaded:
+
+```{r}
+head(anckar)
+```
+
+The dataset contains a couple of indicators whether a country is a democracy at a given point in time as judged by the authors mentioned above. There is also some miscellaneous information. However, if we compare this data set to the `poverty_data` data set, we notice that some countries have different names. It will therefore be difficult to bring them together. Fortunately, the `democracyData` data set contains a function called `country_year_coder`, which allows us to look up country code. This is where the `iso2c` variable comes in handy. 
+
+```{r, results=FALSE, warning=FALSE, message=FALSE}
+anckar <- democracyData::country_year_coder(anckar, 
+                                          country_col = anckar_country, 
+                                          date_col = year, 
+                                          code_col = anckar_ccode, 
+                                          include_in_output = "iso2c")
+```
+
+As you may have noticed, by executing this command, we have supplemented our `data.frame` with an `iso2c` column. This, in turn, allows us to merge the observations according to the observations in the `poverty_data` dataset. 
+
+But before that, we remove variables we do not need: we want to select the variables `iso2c`, `year`, and `democracy`, and merge them to the `poverty_data` dataframe. 
+
+**Question 2.1**: Select these variables and write them to a `data.frame` called `to_be_merged`. 
+
+```{r}
+
+```
+
+**Question 2.2**: Use the `left_join` command to merge these two variables to the `poverty_data` data.frame. Read `?left_join` to correctly specify the `by` argument in this function. Make sure to match on two variables: the `iso2c` codes and the years, so that you match based on country-year pairs. 
+
+```{r}
+
+```
+
+**Question 2.3**: Find out what the median is of the poverty variable in the dataset you downloaded. Extract your answer via code in a new code chunk below. 
+
+```{r}
+
+```
+
+
+**Question 2.4**: Now, make a new dummy variable `povyesno`, meaning: 
+
+$$
+\text{povyesno}_i = \begin{cases} 
+1 &\mbox{ if Poverty } > \text{median}(\text{Poverty}) \\
+0 &\mbox{ otherwise }
+\end{cases}
+$$
+
+You can easily do so using the `if_else` function from `dplyr`. Check `?if_else` for its syntax. Then, write the data.frame with the new variable to memory named `data` again.
+
+```{r}
+
+```
+
+### Part 3: Obtain the required educational data
+
+Next, we will want to integrate information about educational attainment. Fortunately, the _World Bank_ also collects many different kinds of data on educational attainment. For an impression, have a look at:
+
+```{r}
+educ_search <- wbstats::wb_search("educational attainment")
+```
+
+For this setting, we'll take the variable `SE.PRM.CUAT.ZS`, which is the fraction of the population aged 25 and over that at least complete primary education in a particular country in a particular year. 
+
+**Question 3.1**: Download this variable and store it in a dataset called `education` using the function `wb_data`. 
+
+```{r}
+
+```
+
+**Question 3.2**: Select the first five variables and then omit the `NA` observations from this dataset. Also rename the variable to `educ`. 
+
+```{r}
+
+```
+
+**Question 3.3**: Now use `left_join` again to merge your already assembled `data` with the `education` data, and rewrite it again to memory as `data` (meaning that you overwrite data with the merged data.frame):
+
+```{r}
+
+```
+
+There are a couple of unnecessary variables in your dataset, and the merges have caused some `NA`s. They can be removed using the `select` function in the following way:
+
+```{r}
+data <- data |>
+  select(-iso3c.x, -country.x, -iso3c.y, -country.y) |> 
+  na.omit()
+
+```
+
+Now we are ready to train a statistical model. 
+
+### Part 4: Building a linear regression model 
+
+We want to predict poverty by means of two factors: (i) historical educational investment, and (ii) democracy. We have just undertaken various efforts to collect all these data in the data.frame called `data`. Next, we'll proceed to estimate a statistical model to predict poverty. In particular, we will estimate the following model:
+
+$$
+\text{poverty}_i = \alpha + \beta_1 \cdot \text{democracy}_i + \beta_2 \cdot \text{education}_i + \epsilon_i
+$$
+
+This model estimates the coefficients $\alpha, \beta_1$ and $\beta_2$. Do you think $\beta_1$ and $\beta_2$ will be greater than zero, smaller than zero, or zero, and why?
+
+It turns out that this linear model can be solved using the gradient descent algorithm. This means that we are describing a loss function, randomly initialize parameters, and then compute the gradient, and move the parameters in the direction _opposite_ the largest increase. 
+
+In this case, the loss function we use is:
+
+$$
+\mathcal{L}(y, \hat{y}) = - \frac{1}{n} \sum_{i=1}^n (y_i - \hat{y})^2
+$$
+
+where $\hat{y}_i = \alpha + \beta_1 \cdot \text{democracy}_i + \beta_2 \cdot \text{education}_i$, the predicted value for $y_i$, given values of education and democracy, and parameter values $\alpha, \beta_1, \beta_2$. It is our job to set the parameters such that our loss function is minimized. To do so, we employ gradient descent. This involves taken the derivative of the loss function with respect to the parameters $\alpha, \beta_1, \beta_2$. Let's focus on $\beta_1$, then you can do the remainder by yourself. 
+
+$$
+\frac{\partial L}{\partial \beta_1} = - \frac{1}{n} \sum_{i=1}^n \frac{\partial L}{\partial \hat{y}} \cdot \frac{\partial \hat{y}}{\partial \beta_1} = - \frac{1}{n} \sum_{i=1}^n 2 (y_i - \hat{y}) \cdot x_i
+$$
+
+In practice, people often leave out the $-2$ constant term, and write the gradient as follows:
+
+$$
+\frac{\partial L}{\partial \beta_1} = \frac{1}{n} \sum_{i=1}^n (\hat{y}-y_i) \cdot x_i
+$$
+
+..so that the following updating rule for the $\beta$-coefficients can be determined:
+
+$$
+\beta^{i+1} = \beta^i - \alpha \cdot \frac{1}{n} \sum_{i=1}^n (\hat{y}-y_i) \cdot x_i
+$$
+.. with $\alpha$ being a learning rate we talked about during the lecture. 
+
+Below is an implementation of such an algorithm:
+
+```{r gradient_descent}
+gradient <- function(beta, X, Y) {
+  return(2 * t(X) %*% (X %*% beta - Y) )
+}
+
+gradient_descent <- function(X, Y, max_iterations=5000, alpha=1e-4){
+  
+  beta <- rep(0, ncol(X))
+  # Perform gradient descent
+  for (i in 1:max_iterations) {
+    # Calculate the gradient at the current point
+    grad <- gradient(beta, X, Y)
+    # Update the current point using the gradient and learning rate
+    beta <- beta - alpha * grad
+    # Check if the algorithm has converged
+    if (max(abs(grad)) < 1e-6) {
+      break
+      }
+  }
+  
+  return(beta)
+}
+```
+
+Before running the algorithm, we'll scale the educational attainment variable down by 100:
+
+```{r}
+data <- data |>
+  mutate(educ = educ/100)
+```
+
+Next, we'll run the algorithm. You'll get an output containing two numbers, the estimated $\alpha, \beta_1$, corresponding to a constant term and `education` respectively. 
+
+```{r}
+linear_gd <- gradient_descent(cbind(1, data$educ, data$democracy), 
+                              cbind(data$poverty))
+
+```
+
+**Question 4.1**: Print the three numbers you got in your RMarkdown document. Note: the algorithm might take a couple of minutes to run. 
+
+```{r}
+# print the numbers in this code chunk
+
+```
+
+The three numbers should correspond to an _intercept_, a $\beta_1$-coefficient for education and a $\beta_2$ coefficient for democracy, respectively.
+
+**Question 4.2**: Interpret the model. If countries become more democratic, do they get more or less poor, according to this model? And wht about if they get more education? Which one of the variables is more important? 
+
+### Part 5: Building a logistic regression model
+
+Finally, we'll analyze the same data using a logistic regression model. This time, however, we will analyze not the `poverty` variable, but a dichotomized version of it: `povyesno`, which you created before. A key element in a logistic regression model is the so-called _sigmoid_ function. The sigmoid function $S(x)$ is defined as follows:
+
+$$
+S(x) = \frac{1}{1+e^{-x}}
+$$
+**Question 5.1**: Implement the sigmoid function as a function in R
+
+```{r}
+
+```
+
+A nice thing about this sigmoid function is that its outcomes always fall between 0 and 1. We'll use the sigmoid function to build a logistic regression model. In particular, instead of a simple argument $x$, we are predicting the outcome, poverty, on the basis of the same two independent variables as before, and two corresponding coefficients. Our sigmoid function would thus look like this:
+
+$$
+\text{Poverty}_i = \frac{1}{1+e^{-[\alpha + \beta_1 \cdot \text{educ}_i + \beta_2 \cdot \text{stab}_i]}}
+$$
+
+In the next few steps, we want to implement these functions in our gradient descent algorithm. We can largely use the same setup as we used in the linear model, with the exception of the derivatives, because the loss function you use is slightly different.  
+
+```{r}
+logistic_regression <- function(x, y, theta, alpha, iterations) {
+  # number of obs
+  m <- length(y)
+  
+  # initialize theta
+  theta <- matrix(0, nrow = ncol(x), ncol = 1)
+  
+  # Loop through the number of iterations
+  for (i in 1:iterations) {
+    # Calculate the hypothesis using the sigmoid function
+    h <- sigmoid(x %*% theta)
+    
+    # Calculate the gradient
+    grad <- t(x) %*% (h - y) / m
+    
+    # Update theta using the gradient and the learning rate
+    theta <- theta - alpha * grad
+  }
+  
+  # Return the learned theta parameters
+  return(theta)
+}
+```
+
+Now we can use this algorithm to run our gradient descent algorithm, this time for a logistic regression model. You can expect it to take about a minute:
+
+```{r}
+
+logit_gd <- logistic_regression(cbind(1, data$educ, data$democracy), data$povyesno,
+                 alpha = 0.1, 
+                 iterations = 50000)
+```
+
+**Question 5.2**: Display the numbers you got in the document. Do the numbers have the same sign as in the linear regression? Why (not)?
+
+```{r}
+# Enter the numbers here
+```
+
+### Part 6: Evaluate your output and compare it to standard solutions
+
+In this section, we'll think about the output of our analysis and the interpretation of our results. Both linear regression and logistic regression can also be performed using an analytical solution for the minimum loss. For linear regression, this function is implemented in R in the `lm` function. Check the syntax for the `lm` method using `?lm`.
+
+**Question 6.1**: Verify that the solution from the analytical model (`lm(y ~ x1 + x2, data = data)`) is identical to the solution you obtained when performing gradient descent. Use `summary` on an `lm` object to display the summary. 
+
+```{r}
+
+```
+
+
+**Question 6.2**: Verify that the solution from the analytical logistic regression model `glm(y ~ x1 + x2, data = data, family = "binomial)` is identical to the solution when performing gradient descent. 
+
+```{r}
+
+```
+
+Finally, we also want to use what we've learned about poverty. 
+
+**Question 6.3**: Give an interpretation of the linear model. What would happen to poverty when a country becomes more democratic, and what would happen to poverty if a country had invested more in education? Is the effect large? Explain.
+
+**Question 6.4**: Give an interpretation of the logistic regression model. What would happen the likelihood to be poor when a country becomes more democratic, and what would happen if a country had invested more in education? Is the effect large? Explain.
+
+**Question 6.5**: Generate the predicted values from the linear model. Find the _highest_ predicted value. For which country is this (show the `iso2c` code) And what is the predicted value? Use code to find all of this information. Hint: use `predict`, `max` and `which.max`, and then look at `data`. 
+
+```{r}
+
+```
+
+## The End

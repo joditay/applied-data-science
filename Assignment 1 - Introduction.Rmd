@@ -1,0 +1,129 @@
+---
+title: | 
+  | Assignment 1: Introduction 
+  | Introduction to Applied Data Science
+  | 2022-2023
+author: |
+  | Jodi Tay Seow Xuan
+  | j.joditayseowxuan@student.uu.nl
+date: 6 May 2023
+urlcolor: purple
+linkcolor: purple
+output: 
+  pdf_document
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(error=TRUE, warning=FALSE, message=FALSE)
+```
+
+## Introduction
+
+This is the first assignment you have to do as part of the "Introduction to Applied Data Science" course. This assignment is supposed to help you get familiar with Rmarkdown, the tool that we will use to (i) make the assignments (as in: you will fill in your answers to questions in this document), and (ii) to automatically report what you have done. You can try clicking the `Knit` button in Rstudio to see what your assignment will look like in a .pdf document. 
+
+When submitting your assignment, however, make sure to submit the `.Rmd` file, and not the `.pdf` output. You can use the .pdf output to check what your document looks like, and also to check if it matches the output you expected. 
+
+
+### Part 1: Creating an R project
+
+**Question 1.1:** On your computer, create an R project (through File > New Project..) in a _new_ folder called `applied_data_science` (or something like that). Inside this folder, create four folders, called `assignment1, assignment2, assignment3, assignment4`. Paste this present file in the folder `assignment1`. Use the default options for the R project.
+
+(*!* Remember now that, in your console, your working directory is always the directory in which the `.Rproj` file is located, so you have to specify files relative to that directory)
+
+**Question 1.2**: On [snipboard](https://snipboard.io), you can upload screenshots. Open windows explorer, and make a screenshot of the content of the `applied_data_science` folder you have just created. This folder should contain four folders and an `.Rproj` file. Now upload this screenshot on snipboard and paste the url you retrieve below: 
+
+https://snipboard.io/alIYAn.jpg
+
+For your Markdown document, however, your working directory is by default the directory the `.Rmd` document is in. So in this case, the folder assignment 1. The next question will demonstrate that. 
+
+**Question 1.3**: To demonstrate that, using the `list.files()` function, list the files in the `applied_data_science` folder (that is, the directory __above__ the directory your `.Rmd` document is in, accessed by "../"), as well as in the folder `assignment1`. You can enter your code in the following *code chunk*:
+
+```{r}
+list.files(path = "/Users/joditay/applied_data_science")
+list.files(path = "/Users/joditay/applied_data_science/assignment1")
+```
+
+
+### Part 2: Familiarizing yourself with R and RMarkdown
+
+As you know, as soon as you open an .Rmarkdown document, RStudio features a _console_, which is the currently active R session, and a text editor, in which you can write *code chunks*, as demonstrated above. 
+
+**Question 2.1**: Using the same syntax as above, try writing a code chunk below that computes the mean of the all the numbers from 1 to 100. You can use the function `mean`, and you can quickly get R to get the numbers 1 to 100 in R as 1:100. 
+
+```{r}
+mean(1:100)
+```
+
+**Question 2.2**: The function to calculate the standard deviation is called `sd`. Use this to compute the standard deviation of this sequence of numbers from 1 to 100 and write this in a code chunk below. 
+
+```{r}
+sd(1:100)
+```
+
+**Question 2.3**: In addition to calculating things, you can get R to remember stuff by writing this to memory. Write an object to memory called `hello`, and store the standard deviation you calculated before. Do this in a code chunk below this text. 
+
+```{r}
+hello = sd(1:100)
+print(hello)
+```
+
+### Part 3: Tidy data
+
+As part of the `tidyverse` philosophy, we are keen on working with _tidy_ data as opposed to other formats of data. 
+
+**Question 3.1**: If you haven't done so already, install the `tidyverse` set of packages (you can do that in the console and you don't have to report this), and then create a code chunk below to load the package. 
+
+```{r}
+library(tidyverse)
+```
+
+**Question 3.2**: There are a couple of data sets that come pre-loaded in R. One of the data sets is called `iris`. Write a code chunk below that shows the first *5* observations of this data set. 
+
+```{r}
+head(iris, 5)
+```
+
+**Question 3.3**: Is `iris` a tidy data set? Why? Write your response in text below.
+
+Yes, as the iris data set fulfills the following requirements: each variable having its own column, each observation having its own row and each value having its own cell.
+
+**Question 3.4**: Once you have imported a data.frame in R, you can do stuff with it. For example, you can create a new column using `mutate` from the `tidyverse` package. Finish the below code excerpt to create a new variable defined as `sepal_length100 = Sepal.Length * 100` (and write the data set to memory as iris2):
+
+```{r}
+iris2 <- iris |>
+  mutate(sepal_length100 = Sepal.Length * 100) # fill this in
+head(iris2, 5)
+```
+
+**Question 3.5**: There are also other data sets already pre-loaded in your R session. In your console, try typing `table2`. Is this a tidy data set? Why? If it is not, describe what should happen in order for it to be a tidy dataset. 
+
+table2 is not a tidy data set. A tidy data set is one where each variable has its own column, each observation has its own row and each value has its own cell. The tidy data set for table2 should have the following columns: country, type and count and the subcolumn: year under type and count. The observations are then classified by country which would occupy 1 row each. 
+
+### Part 4: Interpreting plots
+
+For this part, make sure you install and load the package `AER`. Below, some graphs are plotted. For each of these graphs, write one or two sentences why this relationship might be causal or why it might not be. 
+
+```{r figure, fig.align='center'}
+library(AER); library(ggplot2)
+data(HousePrices)
+
+HousePrices |> ggplot(aes(x = lotsize, y = price)) + 
+  geom_point() +
+  labs(x="Size (sq. ft.)", y = "Sale price", title = "Housing prices according to size")
+```
+
+**Question 4.1**: The scatter plot suggests a weak positive correlation, but there are many outliers that would not fit on the trend line. Thus, the relationship between the house size and its sale price might not be causal.
+
+```{r figure2, fig.align='center'}
+data(CASchools)
+
+CASchools |> ggplot(aes(x=read, y=math)) + 
+  geom_point() +
+  labs(x = "Student's Reading Score", 
+       y = "Student's Math Score", 
+       title="Math and Reading Test Results")
+```
+
+**Question 4.2**: The data points form a very clear trend line, suggesting a strong positive correlation between a student's reading score and their mean score. Thus, it is possible to conclude that this relationship is causal.
+
+## The End
